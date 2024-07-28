@@ -57,7 +57,20 @@ void loop() {
     }
 // Stop scanning
     BLE.stopScan();
+//-----------------------------------
+//------------Sensitivity State------
+//-----------------------------------
 
+  float x_high_positive = 0.15;
+  float y_high_positive = 0.15;
+  float x_high_negative = -0.15;
+  float y_high_negative = -0.15;
+  float z_high_positive = 0.15;
+  float z_high_negative = -0.15;
+
+//-----------------------------------
+//---------------IMU READING---------
+//-----------------------------------
     float x, y, z;
     String concatIMUString;
     if (IMU.accelerationAvailable()) {
@@ -100,20 +113,21 @@ void jarDetected(BLEDevice peripheral){
   }
 
   // Retrieve the IMU characteristic, this characteristic ID is set in the peripheral BLEByteCharacteristic()
-  BLECharacteristic IMUCharacteristic = peripheral.characteristic("19b10001-e8f2-537e-4f6c-d104768a1214");
+  BLECharacteristic jarCharacteristic = peripheral.characteristic("19b10001-e8f2-537e-4f6c-d104768a1214");
+
  
-  if (!IMUCharacteristic) {
+  if (!jarCharacteristic) {
       peripheral.disconnect();
       return;
-      } else if (!IMUCharacteristic.canWrite()) {
+      } else if (!jarCharacteristic.canWrite()) {
           peripheral.disconnect();
           return;
           }
   
   while (peripheral.connected()){ 
     // while the peripheral is connected
-    //Serial.println("JAR Detected, send 1 to peripheral");
-    IMUCharacteristic.writeValue((byte)1);
+    Serial.println("JAR Detected, send 1 to peripheral"); //-------------------------
+    jarCharacteristic.writeValue((byte)1);
     peripheral.disconnect();
     }
   }
@@ -136,20 +150,29 @@ void jarDetected(BLEDevice peripheral){
   }
 
   // Retrieve the IMU characteristic, this characteristic ID is set in the peripheral BLEByteCharacteristic()
-  BLECharacteristic IMUCharacteristic = peripheral.characteristic("19b10001-e8f2-537e-4f6c-d104768a1214");
+  BLECharacteristic ResetCharacteristic = peripheral.characteristic("19b10002-e8f2-537e-4f6c-d104768a1214");
  
-  if (!IMUCharacteristic) {
+  if (!ResetCharacteristic) {
       peripheral.disconnect();
       return;
-      } else if (!IMUCharacteristic.canWrite()) {
+      } else if (!ResetCharacteristic.canWrite()) {
           peripheral.disconnect();
           return;
           }
   while (peripheral.connected()){ 
     // while the peripheral is connected
-    //Serial.println("Reset Warning, send 2 to peripheral");
-    IMUCharacteristic.writeValue((byte)2);
+    Serial.println("Reset Warning, send 1 to peripheral"); //-------------------------
+    ResetCharacteristic.writeValue((byte)1);
     peripheral.disconnect();
     }
   }
 
+//-----------------------------------------------------
+//-----------Update Sensitivity of Jar Detection------
+//-----------------------------------------------------
+
+  void updateSensitivity(BLEDevice peripheral){
+
+    BLECharacteristic SensitivityCharacteristic = peripheral.characteristic("19b10003-e8f2-537e-4f6c-d104768a1214");
+
+  }
