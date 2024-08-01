@@ -4,8 +4,12 @@
 #include <OneButton.h>
 #include "DFRobotDFPlayerMini.h"
 
-const int senseLEDPin = 25;
-const int recapLEDPin = 26;
+bool senseToggle = false;
+bool silence = false;
+bool jarRecap = true;
+
+const int senseLEDPin = 25; // red
+const int recapLEDPin = 26; // blue
 const int senseButtonPin = 12;
 const int recapButtonPin = 13;
 
@@ -45,6 +49,7 @@ void setup() {
 // Button setup
   senseButton.attachClick(senseSingleClick);
   QuietButton.attachClick(recapSingleClick);
+  QuietButton.attachLongPressStop(recapLongClick);
 
 
 // Start BLE
@@ -70,24 +75,46 @@ void setup() {
 }
 
 void loop() {
+  static unsigned long timer = millis(); // set timer for silence mode
   senseButton.tick(); // check the button
   QuietButton.tick();
   delay(100);
+
+  if (millis() - timer > 15000) { // check the jar variable every 10 seconds.
+    timer = millis();
+    if(jarRecap == true){ // Set the jarRecap to false every 10 seconds
+      jarRecap = false;
+    }
+
+
+  }
+
   BLEDevice central = BLE.central();
 
     if (central) {
     while (central.connected()) {
       int newJarState = jarCharacteristic.value();
       if (newJarState != 0){
-        Serial.println("JAR Characteristic value is: ");
-        Serial.println(jarCharacteristic.value());
+        Serial.println("JAR Detected");
+        if (silence == true){
+          Serial.println("Silenced Jar");
+        }else{
+          playSound(9);
+        }
+        jarRecap = true;
+        blinkAction("jar");
         jarCharacteristic.writeValue(0);
         central.disconnect();
     }
     int newResetState = ResetCharacteristic.value();
     if (newResetState != 0){
-        Serial.println("RESET Characteristic value is: ");
-        Serial.println(ResetCharacteristic.value());
+        Serial.println("RESET Detected");
+        if (silence == true){
+          Serial.println("Silenced Reset");
+        }else{
+          playSound(8);
+        }
+        blinkAction("reset");
         ResetCharacteristic.writeValue(0);
         central.disconnect();
 
@@ -101,32 +128,38 @@ void loop() {
 //-------------------Utility-----------------------------
 //------------------------------------------------------
 
+//Sense single click will toggle sensitivity of the IMU
   void senseSingleClick(){
     Serial.println("Sense Button Pressed");
-    playSound(2);
-    digitalWrite(senseLEDPin,HIGH);
-    delay(1000);
-    digitalWrite(senseLEDPin,LOW);
-
-    /*
     int currentSenseState = SensitivityCharacteristic.value();
-    // if currentState 0 then set to 1 - Change the LED ON, Announce on speaker sensitivity set to high
     if(currentSenseState == 0){ // if currentState 0 then set to 1
-      SensitivityCharacteristic.writeValue(1);
-        // Change the LED ON
-      digitalWrite(senseLED,HIGH);
-        // Announce on speaker sensitivity set to high
-        // if currenState 1 set to 0 - Change the LED OFF, Announce on speakerb sensitivity normal
-      }
-      */
+    senseToggle = (senseToggle == false)? true : false;
+    //SensitivityCharacteristic.writeValue(1); //**************** turn this on when central is working
+    senseToggle == false ? digitalWrite(senseLEDPin,LOW) : digitalWrite(senseLEDPin,HIGH);
+    senseToggle == false ? playSound(4) : playSound(2);
+    //SensitivityCharacteristic.writeValue(0); //***************Central will set imu params and then write characteristic back to 0. dont uncomment
+    }
 }
 
-
+//Recap single click silence the audio notification system
 void recapSingleClick() {
   Serial.println("Recap Button Pressed");
-    digitalWrite(recapLEDPin,HIGH);
-    delay(1000);
-    digitalWrite(recapLEDPin,LOW);
+  if(silence == false){
+    playSound(6); // play quiet mode notification
+    silence = true;
+    digitalWrite(recapLEDPin,HIGH); // light on indicates device is silenced
+  }else{
+    playSound(15); 
+    silence = false; // set it back to verbose.
+    digitalWrite(recapLEDPin,LOW); // turn the blue led off to indicate verbose mode
+  }
+
+}
+
+//Recap Long click identifies if a jar occurred within the last 10 seconds
+void recapLongClick(){
+  Serial.println("Recap Long Button Pressed");
+  jarRecap == true ? playSound(13) : playSound(14);
 }
 
 void playSound(int songVal) {
@@ -136,7 +169,10 @@ void playSound(int songVal) {
   6 Quiet mode
   8 Reset warning
   9 Attention jar detected
-  11 15 sec jar
+  13 10 second jar
+  14 no jar detected
+  15 verbose mode
+  17 15 sec jar
   */
   player.setTimeOut(500);
   player.volume(23);
@@ -149,6 +185,40 @@ void playSound(int songVal) {
   }
 }
 
+
+void blinkAction(String actionType){ // action type is either jar or reset
+if(actionType == "jar"){
+  digitalWrite(senseLEDPin,HIGH);
+  delay(250);
+  digitalWrite(senseLEDPin,LOW);
+  delay(250);
+    digitalWrite(senseLEDPin,HIGH);
+  delay(250);
+  digitalWrite(senseLEDPin,LOW);
+  delay(250);
+    digitalWrite(senseLEDPin,HIGH);
+  delay(250);
+  digitalWrite(senseLEDPin,LOW);
+  delay(250);
+  senseToggle == false ? digitalWrite(senseLEDPin,LOW) : digitalWrite(senseLEDPin,HIGH);
+}
+if (actionType == "reset"){
+    digitalWrite(recapLEDPin,HIGH);
+  delay(250);
+  digitalWrite(recapLEDPin,LOW);
+  delay(250);
+    digitalWrite(recapLEDPin,HIGH);
+  delay(250);
+  digitalWrite(recapLEDPin,LOW);
+  delay(250);
+    digitalWrite(recapLEDPin,HIGH);
+  delay(250);
+  digitalWrite(recapLEDPin,LOW);
+  delay(250);
+  silence == true ? digitalWrite(recapLEDPin,HIGH) : digitalWrite(recapLEDPin,LOW);
+}
+
+}
 
 void printDetail(uint8_t type, int value){
   switch (type) {
