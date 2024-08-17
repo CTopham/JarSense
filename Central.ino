@@ -13,37 +13,10 @@ Adafruit_MPU6050 mpu;
 
 bool senseToggle = false;
 const int sensePin = 33; // slide switch
+bool calibrated = false;
+float calibrated_x = NULL;
+float calibrated_y = NULL;
 
-//------ JARS -----
-float jar_x_high_positive = 3.00;
-float jar_y_high_positive = 4.00;
-float jar_x_high_negative = -3.00;
-float jar_y_high_negative = -4.00;
-//float jar_z_high_positive = 0.18;
-//float jar_z_high_negative = -0.18;
-
-float jar_x_low_positive = 5.00;
-float jar_y_low_positive = 6.00;
-float jar_x_low_negative = -5.00;
-float jar_y_low_negative = -6.00;
-//float jar_z_low_positive = 0.23;
-//float jar_z_low_negative = -0.23;
-
-//------ RESETS -----
-
-float reset_x_high_positive = 2.00;
-float reset_y_high_positive = 3.00;
-float reset_x_high_negative = -2.00;
-float reset_y_high_negative = -3.00;
-//float reset_z_high_positive = 0.12;
-//float reset_z_high_negative = -0.12;
-
-float reset_x_low_positive = 3.00;
-float reset_y_low_positive = 4.00;
-float reset_x_low_negative = -3.00;
-float reset_y_low_negative = -4.00;
-//float reset_z_low_positive = 0.12;
-//float reset_z_low_negative = -0.12;
 
 void setup(void) {
   Serial.begin(115200); //DETERMINE BITS
@@ -102,7 +75,7 @@ void setup(void) {
     break;
   }
 
-  Serial.println("");
+  calibrater();
   delay(1000);
 
 
@@ -135,37 +108,42 @@ void loop() {
 //---------------IMU READING---------
 //-----------------------------------
   sensitivityToggle();
+
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
 
-  float x = a.acceleration.x;
-  float y = a.acceleration.y;
+  float x = fabs(a.acceleration.x);
+  float y = fabs(a.acceleration.y);
   //float z = a.acceleration.z;
 
   String concatIMUString;
 
   concatIMUString = String(a.acceleration.x) + "," + String(a.acceleration.y) + "," + String(a.acceleration.z);
   //Serial.println(concatIMUString);
+  //Serial.println("The X value is " + String(x) +  " The compare value is " + String(Compare(calibrated_x,.25,"add")));
+
   keepAlive();
+
+
   if (senseToggle == false){
-    if ((x > jar_x_low_positive) || (y > jar_y_low_positive) || (x < jar_x_low_negative) || (y < jar_y_low_negative)){
+    if ((x > Compare(calibrated_x,1.00,"add")) || (y > Compare(calibrated_y,1.00,"add")) || (x < Compare(calibrated_x,1.00,"subtract")) || (y < Compare(calibrated_y,1.00,"subtract"))){
       Serial.println("Low Sensitivity Jar hit!"); //*************************
       jarDetected(peripheral); 
-      } else if ((x > reset_x_low_positive) || (y > reset_y_low_positive) || (x < reset_x_low_negative) || (y < reset_y_low_negative)){
+      } else if ((x > Compare(calibrated_x,0.90,"add")) || (y > Compare(calibrated_y,0.90,"add")) || (x < Compare(calibrated_x,0.90,"subtract")) || (y < Compare(calibrated_y,0.90,"subtract"))){
         Serial.println("Low Sensitivity reset hit!"); //*************************
         resetWarning(peripheral); 
         }
   } else if (senseToggle == true){
-      if ((x > jar_x_high_positive) || (y > jar_y_high_positive) || (x < jar_x_high_negative) || (y < jar_y_high_negative)){
+      if ((x > Compare(calibrated_x,0.90,"add")) || (y > Compare(calibrated_y,0.90,"add")) || (x < Compare(calibrated_x,0.90,"subtract")) || (y < Compare(calibrated_y,0.90,"subtract"))){
         Serial.println("High Sensitivity jar hit!"); //*************************
         jarDetected(peripheral); 
         } 
-        else if ((x > reset_x_high_positive) || (y > reset_y_high_positive) || (x < reset_x_high_negative) || (y < reset_y_high_negative)){
+        else if ((x > Compare(calibrated_x,0.80,"add")) || (y > Compare(calibrated_y,0.80,"add")) || (x < Compare(calibrated_x,0.80,"subtract")) || (y < Compare(calibrated_y,0.80,"subtract"))){
           Serial.println("High Sensitivity reset hit!"); //*************************
           resetWarning(peripheral);  
         }
     }
-      delay(500);
+      delay(100);
       BLE.scanForUuid("19B10000-E8F2-537E-4F6C-D104768A1214");
   }
 }
@@ -266,4 +244,59 @@ void keepAlive(){
   delay(200);
   digitalWrite(LED,HIGH);
   return;
+}
+
+void calibrater(){
+  sensors_event_t a, g, temp;
+  float x;
+  float y;
+
+  //float z = a.acceleration.z;
+
+  if(calibrated == false){
+    delay(10000);
+    float x_array[5];
+    float y_array[5];
+    for (int i = 0 ; i < 5 ; i++){
+      mpu.getEvent(&a, &g, &temp);
+      x = fabs(a.acceleration.x);
+      y = fabs(a.acceleration.y);
+      Serial.println("Storing X ");
+      Serial.println(x);
+      Serial.println("Storing Y ");
+      Serial.println(y);
+      x_array[i] = x;
+      y_array[i] = y;
+      delay(600);
+    } 
+    calibrated = true;
+    calibrated_x = calculateAverage(x_array, 5);
+    calibrated_y = calculateAverage(y_array, 5);
+    Serial.println(" --- calibrated_x = ");
+    Serial.println(calibrated_x);
+        Serial.println(" --- calibrated_y = ");
+    Serial.println(calibrated_y);
+
+  } 
+}
+
+float calculateAverage (float values[], int size) {
+  float sum = 0.0;  // sum will be larger than an item, long for safety.
+  for (int i = 0; i < size; i++){
+    sum += values[i];
+  }return sum / size;
+}
+
+float Compare(float val,float perc,String addOrSub){
+float value;
+{
+  //example 100 + 100 * .15 returns 115'
+  if (addOrSub == "add"){
+    value = val + val * perc;
+  }
+  else if (addOrSub == "subtract"){
+     value = val - val * perc;
+  }
+  return value;
+}
 }
