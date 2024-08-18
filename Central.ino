@@ -16,6 +16,8 @@ const int sensePin = 33; // slide switch
 bool calibrated = false;
 float calibrated_x = NULL;
 float calibrated_y = NULL;
+long timeInactive; //*********************************
+static unsigned long timer = millis(); //*********************************
 
 
 void setup(void) {
@@ -103,6 +105,8 @@ void loop() {
 // Stop scanning
     BLE.stopScan();
 
+// Zero out the timeInactive var*********************************
+resetCurrentTime();
 
 //-----------------------------------
 //---------------IMU READING---------
@@ -145,6 +149,8 @@ void loop() {
     }
       delay(100);
       BLE.scanForUuid("19B10000-E8F2-537E-4F6C-D104768A1214");
+  } else {
+    timerCheck(); // ******************************************
   }
 }
 
@@ -298,5 +304,28 @@ float value;
      value = val - val * perc;
   }
   return value;
+ }
 }
+
+// ******************************************
+void resetCurrentTime(){
+  timeInactive = millis() - timer;
+}
+// ******************************************
+void timerCheck(){
+  long currentTime = millis() - timer; // set current time
+  //Serial.println("current Time " + String(currentTime));
+  //Serial.println("timeInactive " + String(timeInactive));
+    if(currentTime - timeInactive >= 20000){// if timeInactive > 60 second
+      // place in sleep mode
+    Serial.println("Going to Sleep for 1 minute");
+    esp_sleep_enable_timer_wakeup(60 * 1000000);
+    delay(1000);
+    Serial.flush(); 
+    esp_deep_sleep_start();
+  } else{
+    // scan for uuid
+    BLE.scanForUuid("19B10000-E8F2-537E-4F6C-D104768A1214");
+    return;
+  }
 }
