@@ -109,6 +109,7 @@ void loop() {
 
 // Zero out the timeInactive var*********************************
 resetCurrentTime();
+BlueLightOnChip();
 
 //-----------------------------------
 //---------------IMU READING---------
@@ -127,8 +128,6 @@ resetCurrentTime();
   concatIMUString = String(a.acceleration.x) + "," + String(a.acceleration.y) + "," + String(a.acceleration.z);
   //Serial.println(concatIMUString);
   //Serial.println("The X value is " + String(x) +  " The compare value is " + String(Compare(calibrated_x,.25,"add")));
-
-  keepAlive();
 
 
   if (senseToggle == false){
@@ -173,6 +172,7 @@ void jarDetected(BLEDevice peripheral){
   // Discover peripheral attributes
   if (peripheral.discoverAttributes()) {
   } else {
+    digitalWrite(LED,LOW);
     peripheral.disconnect();
     return;
   }
@@ -185,6 +185,7 @@ void jarDetected(BLEDevice peripheral){
       peripheral.disconnect();
       return;
       } else if (!jarCharacteristic.canWrite()) {
+          digitalWrite(LED,LOW);
           peripheral.disconnect();
           return;
           }
@@ -193,6 +194,7 @@ void jarDetected(BLEDevice peripheral){
     // while the peripheral is connected
     Serial.println("JAR Detected, send 1 to peripheral"); //*************************
     jarCharacteristic.writeValue((byte)1);
+    digitalWrite(LED,LOW);
     peripheral.disconnect();
     }
   }
@@ -210,6 +212,7 @@ void jarDetected(BLEDevice peripheral){
   // Discover peripheral attributes
   if (peripheral.discoverAttributes()) {
   } else {
+    digitalWrite(LED,LOW);
     peripheral.disconnect();
     return;
   }
@@ -218,9 +221,11 @@ void jarDetected(BLEDevice peripheral){
   BLECharacteristic ResetCharacteristic = peripheral.characteristic("19b10002-e8f2-537e-4f6c-d104768a1214");
  
   if (!ResetCharacteristic) {
+      digitalWrite(LED,LOW);
       peripheral.disconnect();
       return;
       } else if (!ResetCharacteristic.canWrite()) {
+          digitalWrite(LED,LOW);
           peripheral.disconnect();
           return;
           }
@@ -228,6 +233,7 @@ void jarDetected(BLEDevice peripheral){
     // while the peripheral is connected
     Serial.println("Reset Warning, send 1 to peripheral"); //*************************
     ResetCharacteristic.writeValue((byte)1);
+    digitalWrite(LED,LOW);
     peripheral.disconnect();
     }
   }
@@ -247,12 +253,12 @@ void sensitivityToggle(){
   }
 }
 
-void keepAlive(){
-  delay(200);
+void BlueLightOnChip(){
+  delay(300);
   digitalWrite(LED,HIGH);
-  delay(200);
+  delay(300);
   digitalWrite(LED,LOW);
-  delay(200);
+  delay(300);
   digitalWrite(LED,HIGH);
   return;
 }
@@ -265,7 +271,7 @@ void calibrater(){
   //float z = a.acceleration.z;
 
   if(calibrated == false){
-    delay(10000);
+    delay(15000);
     float x_array[5];
     float y_array[5];
     for (int i = 0 ; i < 5 ; i++){
@@ -278,7 +284,7 @@ void calibrater(){
       Serial.println(y);
       x_array[i] = x;
       y_array[i] = y;
-      delay(600);
+      delay(500);
     } 
     calibrated = true;
     calibrated_x = calculateAverage(x_array, 5);
