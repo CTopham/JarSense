@@ -20,11 +20,12 @@ long timeInactive; //*********************************
 static unsigned long timer = millis(); //*********************************
 
 
+
 void setup(void) {
   Serial.begin(115200); //DETERMINE BITS
-
   pinMode(sensePin, INPUT); 
   pinMode(LED,OUTPUT); // keep alive thing
+
 
   // Try to initialize!
   if (!mpu.begin()) {
@@ -52,7 +53,7 @@ void setup(void) {
   }
 
   mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
-  Serial.print("Filter bandwidth set to: ");
+  //Serial.print("Filter bandwidth set to: ");
   switch (mpu.getFilterBandwidth()) {
   case MPU6050_BAND_260_HZ:
     Serial.println("260 Hz");
@@ -83,12 +84,12 @@ void setup(void) {
 
   // INITIALIZE BLUETOOTH
   if (!BLE.begin()) {
+    Serial.println("Issue with BLE");
     while (1);
   }
   
     // Start scanning for peripherals
   BLE.scanForUuid("19B10000-E8F2-537E-4F6C-D104768A1214");
-
 }
 
 void loop() {
@@ -98,6 +99,7 @@ void loop() {
 
   // Discovered a peripheral, print out address, local name, and advertised service
   if (peripheral) {
+    Serial.println("Connected!");
 // This is the peripherals local name it sets
     if (peripheral.localName() != "IMU_Data") { 
         return;
@@ -150,6 +152,9 @@ resetCurrentTime();
       delay(100);
       BLE.scanForUuid("19B10000-E8F2-537E-4F6C-D104768A1214");
   } else {
+    //Serial.println("Were Not Connected to the peripheral");
+    delay(100);
+    BLE.scanForUuid("19B10000-E8F2-537E-4F6C-D104768A1214");
     timerCheck(); // ******************************************
   }
 }
@@ -310,13 +315,14 @@ float value;
 // ******************************************
 void resetCurrentTime(){
   timeInactive = millis() - timer;
+  return;
 }
 // ******************************************
 void timerCheck(){
   long currentTime = millis() - timer; // set current time
   //Serial.println("current Time " + String(currentTime));
   //Serial.println("timeInactive " + String(timeInactive));
-    if(currentTime - timeInactive >= 20000){// if timeInactive > 60 second
+    if(currentTime - timeInactive >= 15000){// if timeInactive > 60 second
       // place in sleep mode
     Serial.println("Going to Sleep for 1 minute");
     esp_sleep_enable_timer_wakeup(60 * 1000000);
