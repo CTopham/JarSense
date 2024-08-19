@@ -88,12 +88,10 @@ void setup(void) {
     while (1);
   }
   
-    // Start scanning for peripherals
-  BLE.scanForUuid("19B10000-E8F2-537E-4F6C-D104768A1214");
 }
 
 void loop() {
-
+  BLE.scanForUuid("19B10000-E8F2-537E-4F6C-D104768A1214");
   // Check if a peripheral has been discovered
   BLEDevice peripheral = BLE.available();
 
@@ -131,30 +129,34 @@ BlueLightOnChip();
 
 
   if (senseToggle == false){
-    if ((x > Compare(calibrated_x,1.00,"add")) || (y > Compare(calibrated_y,1.00,"add")) || (x < Compare(calibrated_x,1.00,"subtract")) || (y < Compare(calibrated_y,1.00,"subtract"))){
+    if ((x > Compare(calibrated_x,0.90,"add")) || (y > Compare(calibrated_y,0.90,"add")) || (x < Compare(calibrated_x,0.90,"subtract")) || (y < Compare(calibrated_y,0.90,"subtract"))){
       Serial.println("Low Sensitivity Jar hit!"); //*************************
       jarDetected(peripheral); 
-      } else if ((x > Compare(calibrated_x,0.90,"add")) || (y > Compare(calibrated_y,0.90,"add")) || (x < Compare(calibrated_x,0.90,"subtract")) || (y < Compare(calibrated_y,0.90,"subtract"))){
+      return;
+      } else if ((x > Compare(calibrated_x,0.80,"add")) || (y > Compare(calibrated_y,0.80,"add")) || (x < Compare(calibrated_x,0.80,"subtract")) || (y < Compare(calibrated_y,0.80,"subtract"))){
         Serial.println("Low Sensitivity reset hit!"); //*************************
         resetWarning(peripheral); 
+        return;
         }
   } else if (senseToggle == true){
-      if ((x > Compare(calibrated_x,0.90,"add")) || (y > Compare(calibrated_y,0.90,"add")) || (x < Compare(calibrated_x,0.90,"subtract")) || (y < Compare(calibrated_y,0.90,"subtract"))){
+      if ((x > Compare(calibrated_x,0.80,"add")) || (y > Compare(calibrated_y,0.80,"add")) || (x < Compare(calibrated_x,0.80,"subtract")) || (y < Compare(calibrated_y,0.80,"subtract"))){
         Serial.println("High Sensitivity jar hit!"); //*************************
         jarDetected(peripheral); 
+        return;
         } 
-        else if ((x > Compare(calibrated_x,0.80,"add")) || (y > Compare(calibrated_y,0.80,"add")) || (x < Compare(calibrated_x,0.80,"subtract")) || (y < Compare(calibrated_y,0.80,"subtract"))){
+        else if ((x > Compare(calibrated_x,0.70,"add")) || (y > Compare(calibrated_y,0.70,"add")) || (x < Compare(calibrated_x,0.70,"subtract")) || (y < Compare(calibrated_y,0.70,"subtract"))){
           Serial.println("High Sensitivity reset hit!"); //*************************
           resetWarning(peripheral);  
+          return;
         }
     }
       delay(100);
-      BLE.scanForUuid("19B10000-E8F2-537E-4F6C-D104768A1214");
+      return;
   } else {
     //Serial.println("Were Not Connected to the peripheral");
     delay(100);
-    BLE.scanForUuid("19B10000-E8F2-537E-4F6C-D104768A1214");
     timerCheck(); // ******************************************
+    return;
   }
 }
 
@@ -196,6 +198,7 @@ void jarDetected(BLEDevice peripheral){
     jarCharacteristic.writeValue((byte)1);
     digitalWrite(LED,LOW);
     peripheral.disconnect();
+    return;
     }
   }
 
@@ -235,6 +238,7 @@ void jarDetected(BLEDevice peripheral){
     ResetCharacteristic.writeValue((byte)1);
     digitalWrite(LED,LOW);
     peripheral.disconnect();
+    return;
     }
   }
 
