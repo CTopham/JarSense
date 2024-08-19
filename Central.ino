@@ -328,7 +328,7 @@ void timerCheck(){
   long currentTime = millis() - timer; // set current time
   //Serial.println("current Time " + String(currentTime));
   //Serial.println("timeInactive " + String(timeInactive));
-    if(currentTime - timeInactive >= 15000){// if timeInactive > 60 second
+    if(currentTime - timeInactive >= 25000){// if timeInactive > 60 second
       // place in sleep mode
     Serial.println("Going to Sleep for 1 minute");
     esp_sleep_enable_timer_wakeup(60 * 1000000);
