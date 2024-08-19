@@ -127,24 +127,25 @@ BlueLightOnChip();
   //Serial.println(concatIMUString);
   //Serial.println("The X value is " + String(x) +  " The compare value is " + String(Compare(calibrated_x,.25,"add")));
 
-
+  // Y is the jar
+  // X is the Reset
   if (senseToggle == false){
-    if ((x > Compare(calibrated_x,0.90,"add")) || (y > Compare(calibrated_y,0.90,"add")) || (x < Compare(calibrated_x,0.90,"subtract")) || (y < Compare(calibrated_y,0.90,"subtract"))){
+    if ((x > Compare(calibrated_x,0.80,"add")) || (y > Compare(calibrated_y,0.70,"add")) || (x < Compare(calibrated_x,0.80,"subtract")) || (y < Compare(calibrated_y,0.85,"subtract"))){
       Serial.println("Low Sensitivity Jar hit!"); //*************************
       jarDetected(peripheral); 
       return;
-      } else if ((x > Compare(calibrated_x,0.80,"add")) || (y > Compare(calibrated_y,0.80,"add")) || (x < Compare(calibrated_x,0.80,"subtract")) || (y < Compare(calibrated_y,0.80,"subtract"))){
+      } else if ((x > Compare(calibrated_x,0.60,"add")) || (y > Compare(calibrated_y,0.80,"add")) || (x < Compare(calibrated_x,0.70,"subtract")) || (y < Compare(calibrated_y,0.80,"subtract"))){
         Serial.println("Low Sensitivity reset hit!"); //*************************
         resetWarning(peripheral); 
         return;
         }
   } else if (senseToggle == true){
-      if ((x > Compare(calibrated_x,0.80,"add")) || (y > Compare(calibrated_y,0.80,"add")) || (x < Compare(calibrated_x,0.80,"subtract")) || (y < Compare(calibrated_y,0.80,"subtract"))){
+      if ((x > Compare(calibrated_x,0.70,"add")) || (y > Compare(calibrated_y,0.60,"add")) || (x < Compare(calibrated_x,0.70,"subtract")) || (y < Compare(calibrated_y,0.75,"subtract"))){
         Serial.println("High Sensitivity jar hit!"); //*************************
         jarDetected(peripheral); 
         return;
         } 
-        else if ((x > Compare(calibrated_x,0.70,"add")) || (y > Compare(calibrated_y,0.70,"add")) || (x < Compare(calibrated_x,0.70,"subtract")) || (y < Compare(calibrated_y,0.70,"subtract"))){
+        else if ((x > Compare(calibrated_x,0.50,"add")) || (y > Compare(calibrated_y,0.70,"add")) || (x < Compare(calibrated_x,0.60,"subtract")) || (y < Compare(calibrated_y,0.70,"subtract"))){
           Serial.println("High Sensitivity reset hit!"); //*************************
           resetWarning(peripheral);  
           return;
