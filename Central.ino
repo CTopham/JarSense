@@ -106,8 +106,8 @@ void loop() {
     BLE.stopScan();
 
 // Zero out the timeInactive var*********************************
-resetCurrentTime();
-BlueLightOnChip();
+    resetCurrentTime(); // reset sleep time tracker because were connected to peripheral
+    BlueLightOnChip(); // indicates were connected to ble
 
 //-----------------------------------
 //---------------IMU READING---------
