@@ -4,17 +4,18 @@
 #include <ArduinoBLE.h>
 #include <OneButton.h>
 #include "DFRobotDFPlayerMini.h"
+#include "esp_sleep.h"  // Include for ESP32 sleep functions
 
-bool silence = false;
+bool silence = true;
 bool jarRecap = false;
 static unsigned long timer = millis();
-static unsigned long sleepTimer = millis();
 long timeInactive;
 long jarTime = 0;
+bool loopBreaker = false;
 
+#define LED 2
 const int senseLEDPin = 25; // red -- change to jarpin
 const int recapLEDPin = 26; // blue --- change to resetpin
-
 const int recapButtonPin = 13;
 
 #define RXD2 16
@@ -23,8 +24,9 @@ const int recapButtonPin = 13;
 DFRobotDFPlayerMini player;
 
 BLEService imuService("19B10000-E8F2-537E-4F6C-D104768A1214"); // Bluetooth® Low Energy LED Service
-BLEByteCharacteristic jarCharacteristic("19B10001-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite);
-BLEByteCharacteristic ResetCharacteristic("19B10002-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite);
+BLEByteCharacteristic jarCharacteristic("19B10001-E8F2-537E-4F6C-D104768A1214", BLERead | BLENotify| BLEWrite);
+BLEByteCharacteristic resetCharacteristic("19B10002-E8F2-537E-4F6C-D104768A1214", BLERead | BLENotify | BLEWrite);
+
 
 OneButton recapButton(recapButtonPin, true);
 
@@ -46,6 +48,7 @@ void setup() {
 // LED Setup
   pinMode(senseLEDPin, OUTPUT); // Sensitivity LED.. D25
   pinMode(recapLEDPin, OUTPUT); // Sensitivity LED.. D26
+  pinMode(LED,OUTPUT); // Blue on board Blinks when connected
 
 
 // Button setup
@@ -62,61 +65,39 @@ void setup() {
   BLE.setLocalName("IMU_Data");
   BLE.setAdvertisedService(imuService);
   imuService.addCharacteristic(jarCharacteristic);
-  imuService.addCharacteristic(ResetCharacteristic);
+  imuService.addCharacteristic(resetCharacteristic);
   BLE.addService(imuService);
-  jarCharacteristic.writeValue(0);
-  ResetCharacteristic.writeValue(0);
+  jarCharacteristic.setEventHandler(BLEWritten, onJarMessageReceived);
+  resetCharacteristic.setEventHandler(BLEWritten, onResetMessageReceived);
+
+// Advertise
   BLE.advertise();
   Serial.println("BLE IMU Peripheral Advertising imuService with name IMU_DATA");
 
 }
 
 void loop() {
-
-  recapButton.tick();
-
+  Serial.println("Top of Loop");
   delay(100);
-
+  recapButton.tick();// Watcher - button clicks
   timerCheck(); // Check if we had a jar within 10 seconds to set boolean
-
-  sleepTimerCheck(); // Check if we need to go to sleep from being idle
+  handleSleep(); // Check for sleep condition
 
   BLEDevice central = BLE.central();
-
-   if (central) {
-    while (central.connected()) {
-
-      int newJarState = jarCharacteristic.value();
-
-      if (newJarState != 0){
-        Serial.println("JAR Detected");
-        if (silence == true){
-          Serial.println("Silenced Jar");
-        }else{
-          playSound(11);
-        }
-        jarRecap = true;
-        jarTime = millis() - timer; // time stamp the time of the jar, to check for 15 sec passing
-        blinkAction("jar"); // blink led pin 25
-        jarCharacteristic.writeValue(0);
-        resetSleepTime();
-        central.disconnect();
-    }
-    int newResetState = ResetCharacteristic.value();
-    if (newResetState != 0){
-        Serial.println("RESET Detected");
-        if (silence == true){
-          Serial.println("Silenced Reset");
-        }else{
-          playSound(7);
-        }
-        blinkAction("reset"); // blink led pin 26
-        ResetCharacteristic.writeValue(0);
-        resetSleepTime();
-        central.disconnect();
+  if (central) {
+    BlueLightOnChip();
+    resetCurrentTime();
+    while (central.connected()) { 
+      delay(100);
+      Serial.println("In While Loop");
+      recapButton.tick();// Watcher - button clicks
+      BLE.poll(); // Handle BLE events
+      Serial.println(loopBreaker);
+      if (checkAndExitLoop()) { // Check if you need to break the loop
+        break; // Break the loop based on the return value of shouldExitLoop
+      }
     }
   }
-}
 }
 
 //------------------------------------------------------
@@ -124,57 +105,45 @@ void loop() {
 //------------------------------------------------------
 
 //Recap single click silence the audio notification system
-void recapSingleClick() {
+void recapLongClick() {
   Serial.println("Recap Button Pressed");
   if(silence == false){
-    playSound(9); // play quiet mode notification
+    playSound(5); // play quiet mode notification
     silence = true;
     digitalWrite(recapLEDPin,HIGH); // light on indicates device is silenced
+    return;
   }else{
-    playSound(5); 
+    playSound(9); 
     silence = false; // set it back to verbose.
     digitalWrite(recapLEDPin,LOW); // turn the blue led off to indicate verbose mode
+    return;
   }
 }
 
 
 //Recap Long click identifies if a jar occurred within the last 10 seconds
-void recapLongClick(){
+void recapSingleClick(){
   Serial.println("Recap Long Button Pressed");
-  jarRecap == true ? playSound(1) : playSound(3);
+  jarRecap == true ? playSound(1) : playSound(11);
+  return;
 }
 
 void playSound(int songVal) {
   /*
-  2 Sensitivity high
-  4 Sensitivity low
-  6 Quiet mode
-  8 Reset warning
-  9 Attention jar detected
-  13 10 second jar
-  14 no jar detected
-  15 verbose mode
-  17 15 sec jar
-  -----
-  new sdcard
-  9 verbose mode activated
-  1 Jar detectec within 10 seconds
-  3 attentio jar detected
-  5 quite mode set
-  7 reset warning
-  11 no jar detected
-  ------new new sdcard 
+  ------New----
   1 jar detected within 10 sec
-  3 no jar detected
-  5 Verbose mode
-  7 reset warning
-  9 quite mode set
-  11 jar detected
+  3 attn jar detected
+  5 quiet mode set
+  7 Reset Warning
+  9 Verbose mode activated
+  11 no jar detected
+  13 power saving mode
   */
   player.setTimeOut(500);
   player.volume(23);
   try{
     player.play(songVal);
+    return;
   }
   catch(String error){
     Serial.println("Issue with playing song");
@@ -197,6 +166,7 @@ if(actionType == "jar"){
   digitalWrite(senseLEDPin,LOW);
   silence == true ? digitalWrite(recapLEDPin,HIGH) : digitalWrite(recapLEDPin,LOW);
   delay(250);
+  return;
 }
 if (actionType == "reset"){
   digitalWrite(recapLEDPin,HIGH);
@@ -212,6 +182,7 @@ if (actionType == "reset"){
   digitalWrite(recapLEDPin,LOW);
   delay(250);
   silence == true ? digitalWrite(recapLEDPin,HIGH) : digitalWrite(recapLEDPin,LOW);
+  return;
 }
 }
 
@@ -220,18 +191,11 @@ void timerCheck(){
   if (jarRecap == true) {
     if(currentTime - jarTime >= 15000){
     jarRecap = false; // set the jar recap back to false
-    Serial.println("Jar Recap set back to False"); 
+    //Serial.println("Jar Recap set back to False"); 
     return;
-  }else{
-    //Serial.println("Jar Recap still true, and under 15000");
-    return;
-  }
-}else if (jarRecap == false){
-  return;
   }
 }
-
-
+}
 
 
 void printDetail(uint8_t type, int value){
@@ -295,24 +259,84 @@ void printDetail(uint8_t type, int value){
   }
 }
 
-void resetSleepTime(){
+// Function to handle when a message is received
+void onJarMessageReceived(BLEDevice device, BLECharacteristic characteristic) {
+    String message = String((const char*)characteristic.value());
+    Serial.print("Received message: ");
+    Serial.println(message);
+
+    if (silence == true){
+      Serial.println("Silenced Jar");
+      }else{
+        playSound(3);
+        }
+    jarRecap = true;
+    jarTime = millis() - timer; // time stamp the time of the jar, to check for 15 sec passing
+    blinkAction("jar"); // blink led pin 25
+    digitalWrite(senseLEDPin,LOW); // lightindicates device is disconnected
+    loopBreaker = true;
+}
+
+void onResetMessageReceived(BLEDevice device, BLECharacteristic characteristic) {
+    String message = String((const char*)characteristic.value());
+    Serial.print("Received message: ");
+    Serial.println(message);
+  
+    if (silence == true){
+      Serial.println("Silenced Reset");
+      }else{
+        playSound(7);
+        }
+    blinkAction("reset"); // blink led pin 26
+    digitalWrite(senseLEDPin,LOW); // lightindicates device is disconnected
+    loopBreaker = true;
+}
+
+void resetCurrentTime(){
   timeInactive = millis() - timer;
   return;
 }
 
-void sleepTimerCheck(){
-  long currentTime = millis() - sleepTimer; // set current time
+// Function to handle sleep logic
+void handleSleep() {
+    long currentTime = millis() - timer; // set current time
   //Serial.println("current Time " + String(currentTime));
   //Serial.println("timeInactive " + String(timeInactive));
-    if(currentTime - timeInactive >= 15 * 100000){// if timeInactive > 15 minutes
-      // place in sleep mode
-    Serial.println("Going to Sleep");
+    if(currentTime - timeInactive >= 10 * 60000){// if timeInactive > 1 min
+    // place in sleep mode
+    Serial.println("Going to Sleep for 1 minute");
+    playSound(13);
+    digitalWrite(LED,LOW);
+    esp_sleep_enable_timer_wakeup(60000000);  // Set the wakeup interval 1 minutes
     delay(1000);
     Serial.flush(); 
-    esp_deep_sleep_start();
+    esp_light_sleep_start();  // Enter light sleep
+    Serial.println("Woke up from light sleep!");
+    delay(1000);
   } else{
-    //Serial.println("Idle time threshold has not elapsed");
+    // scan for uuid
+    BLE.scanForUuid("19B10000-E8F2-537E-4F6C-D104768A1214");
     return;
   }
 }
+
+// we turn the one when were connected
+void BlueLightOnChip(){
+  delay(300);
+  digitalWrite(LED,HIGH);
+  return;
+}
+
+bool checkAndExitLoop() {
+  // Add a condition to break out of the while loop
+  if (loopBreaker == true) {
+    loopBreaker = false;
+    Serial.println("Breaking out of while loop...");
+    return true; // This breaks the nearest loop, in this case the while(central.connected())
+  }
+  else{
+    return false;
+  }
+}
+
 
