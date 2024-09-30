@@ -5,8 +5,9 @@
 #include <ArduinoBLE.h>
 #include "esp_sleep.h"  // Include for ESP32 sleep functions
 
-
+const int MPU6050_ADDR = 0x68;
 Adafruit_MPU6050 mpu;
+
 #define LED 2
 
 BLEService imuService("19B10000-E8F2-537E-4F6C-D104768A1214");
@@ -35,6 +36,7 @@ float calibrated_x = NULL;
 float calibrated_y = NULL;
 long timeInactive; //*********************************
 static unsigned long timer = millis(); //*********************************
+
 
 
 
@@ -122,25 +124,25 @@ void loop() {
 
   // Check for available peripherals and connect
   if (!peripheral || !peripheral.connected()) {
-    Serial.println("Trying to set peripheral to available");
+    //Serial.println("Trying to set peripheral to available");
     peripheral = BLE.available();
 
     if (peripheral) {
       BLE.stopScan();
       peripheral.connect();
-      resetCurrentTime();
       Serial.println("Connected!");
       Serial.println(peripheral.discoverAttributes());
+      peripheral.service(imuService.uuid()).characteristic(0).canWrite();
+      resetCurrentTime(); // Delay going to sleep
       }
     }
 
     // If connected, send periodic messages
     if (peripheral.connected()) { //this monitors the connection
-
     //Serial.println("WERE IN CONNECTED LOOP!");
     jarCharacteristic = peripheral.service(imuService.uuid()).characteristic("19B10001-E8F2-537E-4F6C-D104768A1214");
     resetCharacteristic = peripheral.service(imuService.uuid()).characteristic("19B10002-E8F2-537E-4F6C-D104768A1214");
-    Serial.println(peripheral.service(imuService.uuid()).characteristic(0).canWrite());
+    //Serial.println(peripheral.service(imuService.uuid()).characteristic(0).canWrite());
  
     // ************** Main Logic in HERE *****************************
     BlueLightOnChip(); // indicates were connected to ble
@@ -150,8 +152,8 @@ void loop() {
   //-----------------------------------
   sensitivityToggle();
 
-  sensors_event_t a, g, temp;
-  mpu.getEvent(&a, &g, &temp);
+  sensors_event_t a,g,temp; 
+  mpu.getEvent(&a,&g,&temp); 
 
   float x = fabs(a.acceleration.x);
   float y = fabs(a.acceleration.y);
@@ -160,8 +162,8 @@ void loop() {
   String concatIMUString;
 
   concatIMUString = String(a.acceleration.x) + "," + String(a.acceleration.y) + "," + String(a.acceleration.z);
-  Serial.println(concatIMUString);
-  Serial.println("The X value is " + String(x) +  " The compare value is " + String(Compare(calibrated_x,.25,"add")));
+  //Serial.println(concatIMUString);
+  //Serial.println("The X value is " + String(x) +  " The compare value is " + String(Compare(calibrated_x,.25,"add")));
 
 
     // Y is the jar
@@ -170,23 +172,27 @@ void loop() {
       if ((x > Compare(calibrated_x,1.00,"add")) || (y > Compare(calibrated_y,0.90,"add")) || (x < Compare(calibrated_x,1.00,"subtract")) || (y < Compare(calibrated_y,1.05,"subtract"))){
         Serial.println("Low Sensitivity Jar hit!"); //*************************
         jarDetected(); 
+        return;
+        
         } else if ((x > Compare(calibrated_x,0.80,"add")) || (y > Compare(calibrated_y,1.00,"add")) || (x < Compare(calibrated_x,0.90,"subtract")) || (y < Compare(calibrated_y,1.00,"subtract"))){
           Serial.println("Low Sensitivity reset hit!"); //*************************
          resetWarning(); 
           }
     } else if (senseToggle == true){
-        if ((x > Compare(calibrated_x,0.90,"add")) || (y > Compare(calibrated_y,0.80,"add")) || (x < Compare(calibrated_x,0.90,"subtract")) || (y < Compare(calibrated_y,0.95,"subtract"))){
+        if ((x > Compare(calibrated_x,0.90,"add")) || (y > Compare(calibrated_y,0.80,"add")) || (x < Compare(calibrated_x,0.90,"subtract")) || (y < Compare(calibrated_y,0.85,"subtract"))){
           Serial.println("High Sensitivity jar hit!"); //*************************
           jarDetected(); 
           } 
-          else if ((x > Compare(calibrated_x,0.70,"add")) || (y > Compare(calibrated_y,0.90,"add")) || (x < Compare(calibrated_x,0.80,"subtract")) || (y < Compare(calibrated_y,0.90,"subtract"))){
+          else if ((x > Compare(calibrated_x,0.80,"add")) || (y > Compare(calibrated_y,1.00,"add")) || (x < Compare(calibrated_x,0.90,"subtract")) || (y < Compare(calibrated_y,1.00,"subtract"))){
             Serial.println("High Sensitivity reset hit!"); //*************************
             resetWarning();  
           }
       }
       delay(200);
+      BLE.scanForUuid(imuService.uuid());
       }
       else{
+        digitalWrite(LED,LOW);
         Serial.println("Disconnected from peripheral, restarting scan...");
         BLE.scanForUuid(imuService.uuid());
       }
@@ -199,12 +205,13 @@ void loop() {
 //-------------------------------------------
 
 void jarDetected(){
-      const char* message = "Jar";
-    if (jarCharacteristic.writeValue(message)) {
-        Serial.println("Message sent to peripheral: Jar");
+  const char* message = "Jar";
+  if (jarCharacteristic.writeValue(message)) {
+    Serial.println("Message sent to peripheral: Jar");
     } else {
-        Serial.println("Failed to write to characteristic");
+      Serial.println("Failed to write to characteristic");
     }
+    quickSleeps(5000);
   }
 
 //-------------------------------------------
@@ -217,7 +224,7 @@ void jarDetected(){
     } else {
         Serial.println("Failed to write to characteristic");
     }
-
+    quickSleeps(5000);
   }
 
 //-------------------------------------------
@@ -237,13 +244,7 @@ void sensitivityToggle(){
 
 // we turn the one when were connected
 void BlueLightOnChip(){
-  delay(300);
-  digitalWrite(LED,HIGH);
-  delay(300);
-  digitalWrite(LED,LOW);
-  delay(300);
-  digitalWrite(LED,HIGH);
-  return;
+    digitalWrite(LED,HIGH);
 }
 
 void calibrater(){
@@ -311,15 +312,14 @@ void resetCurrentTime(){
 // Function to handle sleep logic
 void handleSleep() {
     long currentTime = millis() - timer; // set current time
-  //Serial.println("current Time " + String(currentTime));
-  //Serial.println("timeInactive " + String(timeInactive));
-    if(currentTime - timeInactive >= 15 * 60000){// if timeInactive > 10 min
+    if(currentTime - timeInactive >= 7 * 60000){// if timeInactive > 7 min
     // place in sleep mode
-    //Serial.println("Going to Sleep for 1 minute");
     esp_sleep_enable_timer_wakeup(60000000);  // Set the wakeup interval 1 minutes
     delay(1000);
     Serial.flush(); 
     esp_light_sleep_start();  // Enter light sleep
+    resetCurrentTime();
+    timeInactive = millis() - timer - (6 * 60000); // fast forward the timeinactive so when we wake up, we only search for the difference (1 min)
     Serial.println("Woke up from light sleep!");
     delay(1000);
     return;
@@ -328,6 +328,28 @@ void handleSleep() {
     BLE.scanForUuid("19B10000-E8F2-537E-4F6C-D104768A1214");
     return;
   }
+}
+
+
+void quickSleeps(int sleepTimeMs) {
+  // Put the MPU6050 to sleep
+  Wire.beginTransmission(MPU6050_ADDR);
+  Wire.write(0x6B); // Power management register
+  Wire.write(0x40); // Set sleep bit to 1
+  Wire.endTransmission(true);
+  // Set ESP32 wakeup timer for light sleep
+  esp_sleep_enable_timer_wakeup(sleepTimeMs * 1000); // Sleep time in microseconds
+  // Enter light sleep mode
+  esp_light_sleep_start();
+  // Wake up both ESP32 and MPU6050 after light sleep
+  wakeUpMPU6050();
+}
+// Method to wake up the MPU6050
+void wakeUpMPU6050() {
+  Wire.beginTransmission(MPU6050_ADDR);
+  Wire.write(0x6B); // Power management register
+  Wire.write(0x00); // Clear sleep bit to wake up the MPU6050
+  Wire.endTransmission(true);
 }
 
 

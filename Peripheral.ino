@@ -12,6 +12,7 @@ static unsigned long timer = millis();
 long timeInactive;
 long jarTime = 0;
 bool loopBreaker = false;
+bool connected = false;
 
 #define LED 2
 const int senseLEDPin = 25; // red -- change to jarpin
@@ -54,6 +55,7 @@ void setup() {
 // Button setup
   recapButton.attachClick(recapSingleClick);
   recapButton.attachLongPressStop(recapLongClick);
+  recapButton.attachDoubleClick(recapDoubleClick);
 
 // Start BLE
   if (!BLE.begin()) {
@@ -73,26 +75,26 @@ void setup() {
 // Advertise
   BLE.advertise();
   Serial.println("BLE IMU Peripheral Advertising imuService with name IMU_DATA");
-
 }
 
 void loop() {
-  Serial.println("Top of Loop");
+  //Serial.println("Top of Loop");
   delay(100);
   recapButton.tick();// Watcher - button clicks
   timerCheck(); // Check if we had a jar within 10 seconds to set boolean
   handleSleep(); // Check for sleep condition
+  connected = false;
 
   BLEDevice central = BLE.central();
   if (central) {
-    BlueLightOnChip();
+    ConnectedToCentralInd();
     resetCurrentTime();
     while (central.connected()) { 
       delay(100);
-      Serial.println("In While Loop");
       recapButton.tick();// Watcher - button clicks
+      timerCheck(); // Check if we had a jar within 10 seconds to set boolean
       BLE.poll(); // Handle BLE events
-      Serial.println(loopBreaker);
+      //Serial.println(loopBreaker);
       if (checkAndExitLoop()) { // Check if you need to break the loop
         break; // Break the loop based on the return value of shouldExitLoop
       }
@@ -104,28 +106,36 @@ void loop() {
 //-------------------Utility-----------------------------
 //------------------------------------------------------
 
-//Recap single click silence the audio notification system
+//Recap long click will change the state of verbose mode
 void recapLongClick() {
   Serial.println("Recap Button Pressed");
   if(silence == false){
     playSound(5); // play quiet mode notification
     silence = true;
-    digitalWrite(recapLEDPin,HIGH); // light on indicates device is silenced
+    digitalWrite(recapLEDPin,LOW); // light on indicates device is silenced
     return;
   }else{
     playSound(9); 
     silence = false; // set it back to verbose.
-    digitalWrite(recapLEDPin,LOW); // turn the blue led off to indicate verbose mode
+    digitalWrite(recapLEDPin,HIGH); // turn the blue led on to indicate verbose mode
     return;
   }
 }
 
 
-//Recap Long click identifies if a jar occurred within the last 10 seconds
+//Recap single click identifies if a jar occurred within the last 10 seconds
 void recapSingleClick(){
   Serial.println("Recap Long Button Pressed");
   jarRecap == true ? playSound(1) : playSound(11);
   return;
+}
+
+// Recap Double click identifies if you are connected
+void recapDoubleClick(){
+  Serial.println("Recap Doubleclick");
+  Serial.println(connected);
+  connected == true ? playSound(17) : playSound(15);
+
 }
 
 void playSound(int songVal) {
@@ -138,6 +148,9 @@ void playSound(int songVal) {
   9 Verbose mode activated
   11 no jar detected
   13 power saving mode
+  15 not connected
+  17 device is connected
+  -------
   */
   player.setTimeOut(500);
   player.volume(23);
@@ -164,7 +177,7 @@ if(actionType == "jar"){
     digitalWrite(senseLEDPin,HIGH);
   delay(250);
   digitalWrite(senseLEDPin,LOW);
-  silence == true ? digitalWrite(recapLEDPin,HIGH) : digitalWrite(recapLEDPin,LOW);
+  silence == true ? digitalWrite(recapLEDPin,LOW) : digitalWrite(recapLEDPin,HIGH);
   delay(250);
   return;
 }
@@ -181,7 +194,7 @@ if (actionType == "reset"){
   delay(250);
   digitalWrite(recapLEDPin,LOW);
   delay(250);
-  silence == true ? digitalWrite(recapLEDPin,HIGH) : digitalWrite(recapLEDPin,LOW);
+  silence == true ? digitalWrite(recapLEDPin,LOW) : digitalWrite(recapLEDPin,HIGH);
   return;
 }
 }
@@ -302,7 +315,7 @@ void handleSleep() {
     long currentTime = millis() - timer; // set current time
   //Serial.println("current Time " + String(currentTime));
   //Serial.println("timeInactive " + String(timeInactive));
-    if(currentTime - timeInactive >= 10 * 60000){// if timeInactive > 1 min
+    if(currentTime - timeInactive >= 10 * 60000){// if timeInactive > 10 min
     // place in sleep mode
     Serial.println("Going to Sleep for 1 minute");
     playSound(13);
@@ -310,8 +323,10 @@ void handleSleep() {
     esp_sleep_enable_timer_wakeup(60000000);  // Set the wakeup interval 1 minutes
     delay(1000);
     Serial.flush(); 
-    esp_light_sleep_start();  // Enter light sleep
-    Serial.println("Woke up from light sleep!");
+    esp_light_sleep_start();  // Enter deep sleep to stop timer
+    Serial.println("Woke up from sleep!");
+    resetCurrentTime(); // reset time so we start searching for 15 minutes
+    timeInactive = millis() - timer - (9 * 60000); // fast forward the timeinactive so when we wake up, we only search for the difference (1 min)
     delay(1000);
   } else{
     // scan for uuid
@@ -321,8 +336,9 @@ void handleSleep() {
 }
 
 // we turn the one when were connected
-void BlueLightOnChip(){
+void ConnectedToCentralInd(){
   delay(300);
+  connected = true;
   digitalWrite(LED,HIGH);
   return;
 }
