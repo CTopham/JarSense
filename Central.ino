@@ -1,16 +1,25 @@
 
+
+#include <WiFi.h>
+#include <ArduinoOTA.h>
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
 #include <ArduinoBLE.h>
 #include "esp_sleep.h"  // Include for ESP32 sleep functions
 
+const char* ssid = "SETUP-A0E9";
+const char* password = "apron3737harbor";
+
+//const char* ssid = "Craig's iPhone";
+//const char* password = "xVb4-pkuf-V3DS-IFdZ";
+
 const int MPU6050_ADDR = 0x68;
 Adafruit_MPU6050 mpu;
 
 #define LED 2
 
-BLEService imuService("19B10000-E8F2-537E-4F6C-D104768A1214");
+BLEService imuService("19B10000-E8F2-537E-4F6C-D104768A1214"); // ****UNIQUE****
 BLEDevice peripheral;  // Create a BLEDevice object
 BLECharacteristic jarCharacteristic;  // Create a BLECharacteristic object
 BLECharacteristic resetCharacteristic;  // Create a BLECharacteristic object
@@ -46,6 +55,35 @@ void setup(void) {
   Serial.println("Turned ON");
   pinMode(sensePin, INPUT); 
   pinMode(LED,OUTPUT); // Blinks when connected
+
+    /////------ WIFI and OTA ---------
+
+    // Connect to Wi-Fi
+  WiFi.begin(ssid, password);
+  int maxAttempts = 5;  // Maximum number of attempts to connect to wifi
+  int attempts = 0;      // Counter to track the number of attempts to connect to wifi
+  while (WiFi.status() != 3 && attempts < maxAttempts) {
+  delay(500); // Wait for 500ms between attempts
+  Serial.println(WiFi.status());
+  Serial.println("Connecting to WiFi...");
+  attempts++;  // Increment the attempt counter
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+  Serial.println("Connected to WiFi!");
+  } else {
+  Serial.println("Failed to connect to WiFi after 15 attempts. Moving forward...");
+  // Handle failure case here
+  Serial.println(WiFi.status());
+}
+  
+
+  // ------------Start OTA--------------
+  ArduinoOTA.setHostname("ESP32_Central_1");  // ****UNIQUE****
+  ArduinoOTA.begin();
+  Serial.println("OTA Ready");
+
+   /////------ END  WIFI and OTA ------------------------------------------------
 
 
   // Try to initialize!
@@ -118,6 +156,7 @@ void setup(void) {
 }
 
 void loop() {
+  ArduinoOTA.handle();
   BLE.poll();
   handleSleep();
   delay(200);
@@ -150,6 +189,7 @@ void loop() {
   //-----------------------------------
   //---------------IMU READING---------
   //-----------------------------------
+  ArduinoOTA.handle();
   sensitivityToggle();
 
   sensors_event_t a,g,temp; 

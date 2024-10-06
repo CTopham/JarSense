@@ -1,10 +1,18 @@
 // FINAL PERIPHERAL
 //ESP32 Dev Module
+#include <WiFi.h>
+#include <ArduinoOTA.h>
 #include <Arduino.h>
 #include <ArduinoBLE.h>
 #include <OneButton.h>
 #include "DFRobotDFPlayerMini.h"
 #include "esp_sleep.h"  // Include for ESP32 sleep functions
+
+const char* ssid = "SETUP-A0E9";
+const char* password = "apron3737harbor";
+
+//const char* ssid = "Craig's iPhone";
+//const char* password = "xVb4-pkuf-V3DS-IFdZ";
 
 bool silence = true;
 bool jarRecap = false;
@@ -24,7 +32,7 @@ const int recapButtonPin = 13;
 
 DFRobotDFPlayerMini player;
 
-BLEService imuService("19B10000-E8F2-537E-4F6C-D104768A1214"); // Bluetooth® Low Energy LED Service
+BLEService imuService("19B10000-E8F2-537E-4F6C-D104768A1214"); // ****UNIQUE****
 BLEByteCharacteristic jarCharacteristic("19B10001-E8F2-537E-4F6C-D104768A1214", BLERead | BLENotify| BLEWrite);
 BLEByteCharacteristic resetCharacteristic("19B10002-E8F2-537E-4F6C-D104768A1214", BLERead | BLENotify | BLEWrite);
 
@@ -57,6 +65,36 @@ void setup() {
   recapButton.attachLongPressStop(recapLongClick);
   recapButton.attachDoubleClick(recapDoubleClick);
 
+    /////------ WIFI and OTA ---------
+
+    // Connect to Wi-Fi
+  WiFi.begin(ssid, password);
+  int maxAttempts = 5;  // Maximum number of attempts to connect to wifi
+  int attempts = 0;      // Counter to track the number of attempts to connect to wifi
+  while (WiFi.status() != 3 && attempts < maxAttempts) {
+  delay(500); // Wait for 500ms between attempts
+  Serial.println(WiFi.status());
+  Serial.println("Connecting to WiFi...");
+  attempts++;  // Increment the attempt counter
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+  Serial.println("Connected to WiFi!");
+  } else {
+  Serial.println("Failed to connect to WiFi after 15 attempts. Moving forward...");
+  // Handle failure case here
+  Serial.println(WiFi.status());
+}
+  
+
+  // ------------Start OTA--------------
+  ArduinoOTA.setHostname("ESP32_Peripheal_1"); // ****UNIQUE****
+  ArduinoOTA.begin();
+  ArduinoOTA.handle();
+  Serial.println("OTA Ready");
+
+   /////------ END  WIFI and OTA ------------------------------------------------
+
 // Start BLE
   if (!BLE.begin()) {
     Serial.println("starting Bluetooth® Low Energy module failed!");
@@ -80,6 +118,7 @@ void setup() {
 void loop() {
   //Serial.println("Top of Loop");
   delay(100);
+  ArduinoOTA.handle();
   recapButton.tick();// Watcher - button clicks
   timerCheck(); // Check if we had a jar within 10 seconds to set boolean
   handleSleep(); // Check for sleep condition
@@ -91,6 +130,7 @@ void loop() {
     resetCurrentTime();
     while (central.connected()) { 
       delay(100);
+      ArduinoOTA.handle();
       recapButton.tick();// Watcher - button clicks
       timerCheck(); // Check if we had a jar within 10 seconds to set boolean
       BLE.poll(); // Handle BLE events
