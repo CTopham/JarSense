@@ -32,7 +32,7 @@ const int recapButtonPin = 13;
 
 DFRobotDFPlayerMini player;
 
-BLEService imuService("19B10000-E8F2-537E-4F6C-D104768A1214"); // ****UNIQUE****
+BLEService imuService("19B10000-E8F2-537E-4F6C-D104768A1214"); 
 BLEByteCharacteristic jarCharacteristic("19B10001-E8F2-537E-4F6C-D104768A1214", BLERead | BLENotify| BLEWrite);
 BLEByteCharacteristic resetCharacteristic("19B10002-E8F2-537E-4F6C-D104768A1214", BLERead | BLENotify | BLEWrite);
 
@@ -88,7 +88,7 @@ void setup() {
   
 
   // ------------Start OTA--------------
-  ArduinoOTA.setHostname("ESP32_Peripheal_1"); // ****UNIQUE****
+  ArduinoOTA.setHostname("ESP32_Peripheal_2"); // ****UNIQUE******************************
   ArduinoOTA.begin();
   ArduinoOTA.handle();
   Serial.println("OTA Ready");
@@ -102,7 +102,7 @@ void setup() {
   }
 
 // Setup BLE
-  BLE.setLocalName("IMU_Data");
+  BLE.setLocalName("IMU_Data_0002"); //****UNIQUE******************************
   BLE.setAdvertisedService(imuService);
   imuService.addCharacteristic(jarCharacteristic);
   imuService.addCharacteristic(resetCharacteristic);

@@ -19,7 +19,7 @@ Adafruit_MPU6050 mpu;
 
 #define LED 2
 
-BLEService imuService("19B10000-E8F2-537E-4F6C-D104768A1214"); // ****UNIQUE****
+BLEService imuService("19B10000-E8F2-537E-4F6C-D104768A1214"); // ****UNIQUE****************************
 BLEDevice peripheral;  // Create a BLEDevice object
 BLECharacteristic jarCharacteristic;  // Create a BLECharacteristic object
 BLECharacteristic resetCharacteristic;  // Create a BLECharacteristic object
@@ -79,7 +79,7 @@ void setup(void) {
   
 
   // ------------Start OTA--------------
-  ArduinoOTA.setHostname("ESP32_Central_1");  // ****UNIQUE****
+  ArduinoOTA.setHostname("ESP32_Central_2");  // ****UNIQUE****
   ArduinoOTA.begin();
   Serial.println("OTA Ready");
 
@@ -165,14 +165,17 @@ void loop() {
   if (!peripheral || !peripheral.connected()) {
     //Serial.println("Trying to set peripheral to available");
     peripheral = BLE.available();
-
     if (peripheral) {
       BLE.stopScan();
       peripheral.connect();
-      Serial.println("Connected!");
-      Serial.println(peripheral.discoverAttributes());
-      peripheral.service(imuService.uuid()).characteristic(0).canWrite();
-      resetCurrentTime(); // Delay going to sleep
+      peripheral.discoverAttributes();
+      if (peripheral.hasService(imuService.uuid()) && peripheral.localName() == "IMU_Data_0002"){
+        Serial.println("Connected!");
+        resetCurrentTime(); // Delay going to sleep
+      }else{
+        Serial.println("Connect to wrong UUID");
+        peripheral.disconnect();
+      }
       }
     }
 
@@ -209,21 +212,21 @@ void loop() {
     // Y is the jar
     // X is the Reset
     if (senseToggle == false){
-      if ((x > Compare(calibrated_x,1.00,"add")) || (y > Compare(calibrated_y,0.90,"add")) || (x < Compare(calibrated_x,1.00,"subtract")) || (y < Compare(calibrated_y,1.05,"subtract"))){
+      if ((x > Compare(calibrated_x,1.40,"add")) || (y > Compare(calibrated_y,1.30,"add")) || (x < Compare(calibrated_x,1.40,"subtract")) || (y < Compare(calibrated_y,1.45,"subtract"))){
         Serial.println("Low Sensitivity Jar hit!"); //*************************
         jarDetected(); 
         return;
         
-        } else if ((x > Compare(calibrated_x,0.80,"add")) || (y > Compare(calibrated_y,1.00,"add")) || (x < Compare(calibrated_x,0.90,"subtract")) || (y < Compare(calibrated_y,1.00,"subtract"))){
+        } else if ((x > Compare(calibrated_x,1.20,"add")) || (y > Compare(calibrated_y,1.40,"add")) || (x < Compare(calibrated_x,1.30,"subtract")) || (y < Compare(calibrated_y,1.30,"subtract"))){
           Serial.println("Low Sensitivity reset hit!"); //*************************
          resetWarning(); 
           }
     } else if (senseToggle == true){
-        if ((x > Compare(calibrated_x,0.90,"add")) || (y > Compare(calibrated_y,0.80,"add")) || (x < Compare(calibrated_x,0.90,"subtract")) || (y < Compare(calibrated_y,0.85,"subtract"))){
+        if ((x > Compare(calibrated_x,1.30,"add")) || (y > Compare(calibrated_y,1.20,"add")) || (x < Compare(calibrated_x,1.30,"subtract")) || (y < Compare(calibrated_y,1.25,"subtract"))){
           Serial.println("High Sensitivity jar hit!"); //*************************
           jarDetected(); 
           } 
-          else if ((x > Compare(calibrated_x,0.80,"add")) || (y > Compare(calibrated_y,1.00,"add")) || (x < Compare(calibrated_x,0.90,"subtract")) || (y < Compare(calibrated_y,1.00,"subtract"))){
+          else if ((x > Compare(calibrated_x,1.20,"add")) || (y > Compare(calibrated_y,1.40,"add")) || (x < Compare(calibrated_x,1.30,"subtract")) || (y < Compare(calibrated_y,1.40,"subtract"))){
             Serial.println("High Sensitivity reset hit!"); //*************************
             resetWarning();  
           }
@@ -251,7 +254,7 @@ void jarDetected(){
     } else {
       Serial.println("Failed to write to characteristic");
     }
-    quickSleeps(5000);
+    quickSleeps(3000);
   }
 
 //-------------------------------------------
@@ -264,7 +267,7 @@ void jarDetected(){
     } else {
         Serial.println("Failed to write to characteristic");
     }
-    quickSleeps(5000);
+    quickSleeps(3000);
   }
 
 //-------------------------------------------
